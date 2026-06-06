@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Học Tiếng Trung HSK</title>
+    <!-- Tailwind CSS cho Giao diện -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Vue 3 cho Logic -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <!-- FontAwesome cho Icon -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* Hiệu ứng rung khi làm sai */
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+        .error-shake { animation: shake 0.3s ease-in-out; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans min-h-screen">
+    <div id="app" class="max-w-3xl mx-auto p-4 sm:p-6">
+        
+        <!-- Navigation Tabs -->
+        <nav class="flex justify-center space-x-2 sm:space-x-8 border-b-2 border-slate-200 mb-8 pb-4">
+            <button @click="currentTab = 'vocab'" :class="currentTab === 'vocab' ? 'text-blue-600 border-b-2 border-blue-600 font-bold' : 'text-slate-500 hover:text-blue-500'" class="pb-2 px-2 transition-colors">
+                1. Từ vựng
+            </button>
+            <button @click="currentTab = 'grammar'" :class="currentTab === 'grammar' ? 'text-blue-600 border-b-2 border-blue-600 font-bold' : 'text-slate-500 hover:text-blue-500'" class="pb-2 px-2 transition-colors">
+                2. Ngữ pháp
+            </button>
+            <button @click="currentTab = 'review'" :class="currentTab === 'review' ? 'text-blue-600 border-b-2 border-blue-600 font-bold' : 'text-slate-500 hover:text-blue-500'" class="pb-2 px-2 transition-colors">
+                3. Học lại
+            </button>
+        </nav>
+
+        <!-- TAB I: HỌC TỪ VỰNG -->
+        <div v-if="currentTab === 'vocab'" class="bg-white rounded-2xl shadow-lg p-6 sm:p-8">
+            <div v-if="vocabList.length > 0 && currentIndex < vocabList.length">
+                
+                <!-- Header: Progress & Step -->
+                <div class="flex justify-between items-center mb-8">
+                    <h2 class="text-xl font-bold text-slate-700">
+                        Học từ mới ({{ currentIndex + 1 }}/{{ vocabList.length }})
+                    </h2>
+                    <span class="bg-blue-100 text-blue-800 px-4 py-1 rounded-full font-semibold text-sm">
+                        Step {{ step }}/4
+                    </span>
+                </div>
+
+                <!-- Step 1: Card Từ Vựng -->
+                <div v-if="step === 1" class="flex flex-col sm:flex-row gap-6">
+                    <div class="flex-1 border-2 border-slate-100 rounded-xl p-10 flex flex-col items-center justify-center bg-slate-50 relative">
+                        <span class="text-6xl font-bold text-slate-800">{{ currentWord.word }}</span>
+                        <button @click="playSound(currentWord.word)" class="mt-6 w-12 h-12 bg-white rounded-full shadow hover:bg-blue-50 flex items-center justify-center text-blue-500 transition">
+                            <i class="fa-solid fa-volume-high text-xl"></i>
+                        </button>
+                    </div>
+                    <div class="flex-1 border-2 border-slate-100 rounded-xl p-6 bg-white flex flex-col justify-center space-y-3 text-lg">
+                        <p><span class="font-bold text-slate-500 w-24 inline-block">Pinyin:</span> {{ currentWord.pinyin }}</p>
+                        <p><span class="font-bold text-slate-500 w-24 inline-block">Nghĩa:</span> <span class="text-blue-600 font-bold">{{ currentWord.meaning }}</span></p>
+                        <p><span class="font-bold text-slate-500 w-24 inline-block">Từ loại:</span> {{ currentWord.type }}</p>
+                        <hr class="my-2">
+                        <p class="text-sm text-slate-600"><span class="font-bold block mb-1">Giải thích (Hán Tự):</span> {{ currentWord.explanation }}</p>
+                    </div>
+                </div>
+
+                <!-- Step 2: Ghép cặp (Chọn nghĩa đúng) -->
+                <div v-if="step === 2" class="text-center">
+                    <h3 class="text-2xl mb-8 text-slate-600">Chọn nghĩa đúng cho từ này</h3>
+                    <div class="text-5xl font-bold mb-8">{{ currentWord.word }}</div>
+                    <div class="grid gap-4">
+                        <button v-for="(option, index) in meaningOptions" :key="index" 
+                            @click="checkMatch(option)"
+                            :disabled="isError"
+                            class="p-4 border-2 rounded-xl text-lg font-semibold transition-all hover:bg-slate-50"
+                            :class="isError && option === currentWord.meaning ? 'bg-green-100 border-green-500 text-green-700' : 'border-slate-200'">
+                            {{ option }}
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Step 3 & 4: Gõ từ & Pinyin -->
+                <div v-if="step === 3 || step === 4" class="text-center py-6">
+                    <h3 class="text-2xl mb-8 text-slate-600">
+                        {{ step === 3 ? 'Gõ lại từ tiếng Trung có nghĩa là:' : 'Gõ Pinyin của từ sau:' }}
+                    </h3>
+                    <div class="text-4xl font-bold mb-8 text-blue-600">
+                        {{ step === 3 ? currentWord.meaning : currentWord.word }}
+                    </div>
+                    
+                    <input type="text" v-model="inputVal" @keyup.enter="checkInput" :disabled="isError"
+                        ref="inputField"
+                        class="w-full text-center text-2xl p-4 border-2 rounded-xl outline-none transition-all"
+                        :class="[isError ? 'bg-red-50 border-red-500 text-red-600 error-shake' : 'border-slate-300 focus:border-blue-500', showCorrect ? 'text-red-500 font-bold' : '']"
+                        :placeholder="showCorrect ? correctText : 'Nhập đáp án...'"
+                    />
+                    
+                    <p v-if="isError" class="text-red-500 mt-4 font-semibold text-lg">
+                        Sai rồi! Đáp án đúng là: <span class="font-bold underline">{{ correctText }}</span>
+                    </p>
+                </div>
+
+                <!-- Action Button -->
+                <button v-if="step === 1 || step === 3 || step === 4" 
+                    @click="step === 1 ? nextStep() : checkInput()"
+                    :disabled="isError"
+                    class="mt-8 w-full py-4 rounded-xl font-bold text-lg text-white transition-all"
+                    :class="isError ? 'bg-slate-300 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 shadow-lg hover:shadow-xl'">
+                    {{ step === 1 ? 'Tiếp tục' : 'Kiểm tra & Chuyển tiếp' }}
+                </button>
+
+            </div>
+            
+            <!-- Màn hình hoàn thành Batch -->
+            <div v-else class="text-center py-12">
+                <i class="fa-solid fa-circle-check text-6xl text-green-500 mb-4"></i>
+                <h2 class="text-3xl font-bold text-slate-700 mb-2">Hoàn thành bài học!</h2>
+                <p class="text-slate-500">Bạn đã hoàn thành 15 từ vựng của phiên này.</p>
+                <button @click="resetBatch" class="mt-6 px-6 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700">Học batch mới</button>
+            </div>
+        </div>
+
+        <!-- TAB II & III: NGỮ PHÁP VÀ HỌC LẠI (SKELETON) -->
+        <div v-if="currentTab === 'grammar'" class="bg-white rounded-2xl shadow p-10 text-center text-slate-500">
+            <i class="fa-solid fa-book-open text-4xl mb-4 text-blue-300"></i>
+            <h2 class="text-2xl font-bold text-slate-700 mb-2">Ngữ Pháp HSK</h2>
+            <p>Module học cấu trúc ngữ pháp và bài tập trắc nghiệm sẽ được thiết kế tại đây.</p>
+        </div>
+
+        <div v-if="currentTab === 'review'" class="bg-white rounded-2xl shadow p-10 text-center text-slate-500">
+            <i class="fa-solid fa-rotate-right text-4xl mb-4 text-green-300"></i>
+            <h2 class="text-2xl font-bold text-slate-700 mb-2">Ôn tập ngắt quãng (Spaced Repetition)</h2>
+            <p>Hệ thống tự động lọc các từ đã học được 3 tiếng để ôn tập lại theo 4 bước.</p>
+        </div>
+
+    </div>
+
+    <script>
+        const { createApp, ref, computed, watch, nextTick } = Vue;
+
+        // Data giả lập (Tương lai bạn thay bằng data kéo từ Google Sheets)
+        const MOCK_DATA = [
+            { word: '杯子', pinyin: 'bēi zi', meaning: 'Cái cốc', type: 'Noun', explanation: '木 (gỗ) + 不 (không) + 子 (con) → Cốc gỗ' },
+            { word: '苹果', pinyin: 'píng guǒ', meaning: 'Quả táo', type: 'Noun', explanation: 'Bộ thảo đầu (cây cỏ) kết hợp chữ quả.' },
+            { word: '高兴', pinyin: 'gāo xìng', meaning: 'Vui vẻ', type: 'Adj', explanation: 'Cao hứng.' }
+        ];
+
+        createApp({
+            setup() {
+                const currentTab = ref('vocab');
+                const vocabList = ref([...MOCK_DATA]); 
+                const currentIndex = ref(0);
+                const step = ref(1);
+                
+                // State cho xử lý đáp án
+                const inputVal = ref('');
+                const isError = ref(false);
+                const showCorrect = ref(false);
+                const correctText = ref('');
+                const meaningOptions = ref([]);
+
+                const inputField = ref(null);
+
+                const currentWord = computed(() => vocabList.value[currentIndex.value] || {});
+
+                // Hàm phát âm
+                const playSound = (text) => {
+                    if ('speechSynthesis' in window) {
+                        const utterance = new SpeechSynthesisUtterance(text);
+                        utterance.lang = 'zh-CN';
+                        window.speechSynthesis.speak(utterance);
+                    }
+                };
+
+                // Theo dõi khi chuyển từ mới hoặc load web -> Tự động đọc
+                watch(currentIndex, () => {
+                    if (step.value === 1) playSound(currentWord.value.word);
+                }, { immediate: true });
+
+                // Hàm tạo list đáp án trắc nghiệm cho Step 2
+                const generateOptions = () => {
+                    let options = [currentWord.value.meaning];
+                    // Lấy random 2 nghĩa khác làm bẫy
+                    let others = vocabList.value.filter(v => v.word !== currentWord.value.word).map(v => v.meaning);
+                    options.push(others[0] || 'Quyển sách'); // Fallback nếu data ít
+                    options.push(others[1] || 'Ăn cơm');
+                    meaningOptions.value = options.sort(() => Math.random() - 0.5); // Xáo trộn mảng
+                };
+
+                // Chuyển bước
+                const nextStep = () => {
+                    if (step.value < 4) {
+                        step.value++;
+                        inputVal.value = '';
+                        if (step.value === 2) generateOptions();
+                        if (step.value === 3 || step.value === 4) {
+                            nextTick(() => inputField.value?.focus());
+                        }
+                    } else {
+                        // Sang từ tiếp theo
+                        currentIndex.value++;
+                        step.value = 1;
+                        inputVal.value = '';
+                    }
+                };
+
+                // Hàm xử lý khi làm sai (3s Highlight & Blank)
+                const triggerError = (expectedAnswer) => {
+                    isError.value = true;
+                    showCorrect.value = true;
+                    correctText.value = expectedAnswer;
+                    inputVal.value = ''; // Blank input
+                    
+                    setTimeout(() => {
+                        isError.value = false;
+                        showCorrect.value = false;
+                        nextTick(() => inputField.value?.focus()); // Bắt user làm lại
+                    }, 3000);
+                };
+
+                // Step 2: Kiểm tra ghép cặp
+                const checkMatch = (selected) => {
+                    if (selected === currentWord.value.meaning) {
+                        nextStep();
+                    } else {
+                        triggerError(currentWord.value.meaning);
+                    }
+                };
+
+                // Step 3 & 4: Kiểm tra gõ phím
+                const checkInput = () => {
+                    if (!inputVal.value.trim() || isError.value) return;
+
+                    let isCorrect = false;
+                    let expected = '';
+
+                    if (step.value === 3) {
+                        expected = currentWord.value.word;
+                        isCorrect = inputVal.value.trim() === expected;
+                    } else if (step.value === 4) {
+                        expected = currentWord.value.pinyin;
+                        // Loại bỏ khoảng trắng thừa và phân biệt hoa thường cơ bản
+                        isCorrect = inputVal.value.trim().toLowerCase().replace(/\s+/g, ' ') === expected.toLowerCase();
+                    }
+
+                    if (isCorrect) {
+                        nextStep();
+                    } else {
+                        triggerError(expected);
+                    }
+                };
+
+                const resetBatch = () => {
+                    currentIndex.value = 0;
+                    step.value = 1;
+                };
+
+                return {
+                    currentTab, vocabList, currentIndex, step, currentWord,
+                    inputVal, isError, showCorrect, correctText, meaningOptions, inputField,
+                    playSound, nextStep, checkMatch, checkInput, resetBatch
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
